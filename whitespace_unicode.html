@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>텍스트 정리기 — Invisible Char Cleaner</title>
+  <style>
+    /* 심플하고 깔끔한 카드 스타일 */
+    :root{
+      --bg:#0f1724;
+      --card:#0b1220;
+      --accent:#6ee7b7;
+      --muted:#9aa4b2;
+      --glass: rgba(255,255,255,0.03);
+      --radius:14px;
+      font-family: Inter, "Noto Sans KR", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: linear-gradient(180deg,#071426 0%, #081026 60%);
+      color: #e6eef6;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:28px;
+    }
+
+    .wrap{
+      width:100%;
+      max-width:1100px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:20px;
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:var(--radius);
+      padding:18px;
+      box-shadow: 0 6px 30px rgba(2,6,23,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.03);
+      min-height:360px;
+      display:flex;
+      flex-direction:column;
+    }
+
+    h1{
+      font-size:18px;
+      margin:0 0 8px 0;
+      color:var(--accent);
+    }
+    p.sub{
+      margin:0 0 14px 0;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    textarea{
+      width:100%;
+      flex:1 1 auto;
+      min-height:220px;
+      background:rgba(255,255,255,0.02);
+      color:inherit;
+      border:1px dashed rgba(255,255,255,0.03);
+      padding:12px;
+      border-radius:10px;
+      resize:vertical;
+      font-size:14px;
+      line-height:1.5;
+    }
+
+    .controls{
+      display:flex;
+      gap:8px;
+      margin-top:12px;
+      align-items:center;
+    }
+
+    button{
+      background:linear-gradient(180deg,var(--accent), #4fd79c);
+      color:#023;
+      border:none;
+      padding:8px 12px;
+      border-radius:10px;
+      cursor:pointer;
+      font-weight:600;
+      box-shadow: 0 6px 18px rgba(46,229,153,0.08);
+    }
+    button.ghost{
+      background:transparent;
+      color:var(--muted);
+      border:1px solid rgba(255,255,255,0.03);
+      font-weight:600;
+    }
+
+    .status{
+      margin-top:8px;
+      font-size:14px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:50%;
+      display:inline-block;
+    }
+    .yes{background:#4ade80}
+    .no{background:#ff7a7a}
+
+    pre.output{
+      white-space:pre-wrap;
+      word-break:break-word;
+      background:rgba(0,0,0,0.25);
+      border-radius:10px;
+      padding:12px;
+      min-height:160px;
+      margin:10px 0 0 0;
+      color:#e6eef6;
+      border:1px solid rgba(255,255,255,0.02);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+      font-size:13px;
+    }
+
+    .meta-line{
+      font-size:13px;
+      color:var(--muted);
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      align-items:center;
+    }
+
+    footer.small{
+      margin-top:12px;
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    @media (max-width:900px){
+      .wrap{grid-template-columns: 1fr; padding:0 8px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap" role="main">
+    <!-- 왼쪽: 입력 -->
+    <section class="card" aria-labelledby="title-input">
+      <h1 id="title-input">원본 텍스트 입력</h1>
+      <p class="sub">보이지 않는 문자(Zero Width 등)와 '#', '*' 문자를 감지하고 정리합니다.</p>
+
+      <textarea id="inputText" placeholder="텍스트를 여기에 붙여넣기 하세요... 예: 테스트\u200B문자"></textarea>
+
+      <div class="controls">
+        <button id="cleanBtn">정리 실행</button>
+        <button id="clearBtn" class="ghost">초기화</button>
+        <button id="pasteBtn" class="ghost">붙여넣기(클립보드)</button>
+      </div>
+
+      <div class="status" style="margin-top:8px;">
+        <div class="meta-line" style="width:100%">
+          <span id="detectMsg">감지 결과: —</span>
+          <span id="invisList" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+      </div>
+
+      <footer class="small">동작 방식: 보이지 않는 유니코드 문자를 공백으로 치환하고, `#`와 `*`는 제거합니다.</footer>
+    </section>
+
+    <!-- 오른쪽: 결과 -->
+    <section class="card" aria-labelledby="title-output">
+      <h1 id="title-output">정리된 텍스트</h1>
+      <p class="sub">정리 결과를 복사하거나 파일로 저장할 수 있습니다.</p>
+
+      <div class="meta-line" style="margin-bottom:8px">
+        <div>
+          감지 여부:
+          <span id="resultBadge" style="margin-left:8px; font-weight:700;color:var(--muted)">—</span>
+        </div>
+        <div>
+          <button id="copyBtn" class="ghost">복사</button>
+          <button id="downloadBtn" class="ghost">다운로드(.txt)</button>
+        </div>
+      </div>
+
+      <pre id="output" class="output" aria-live="polite"></pre>
+
+      <footer class="small" style="margin-top:auto">원본과 동일하게 줄바꿈을 보존합니다.</footer>
+    </section>
+  </div>
+
+  <script>
+    // 동일하게 감지/치환할 유니코드 문자 목록 (Python 버전과 매칭)
+    const invisibleChars = [
+      '\\u202F', // Narrow No-Break Space
+      '\\u200B', // Zero Width Space
+      '\\u200C', // Zero Width Non-Joiner
+      '\\u200D', // Zero Width Joiner
+      '\\u2060', // Word Joiner
+      '\\uFEFF'  // BOM
+    ];
+
+    // RegExp 생성: 각각의 유니코드 이스케이프를 실제 문자로 변환해 정규식에 넣음
+    function unicodeEscapeToChar(esc) {
+      // e.g. \\u200B -> 실제 문자
+      return esc.replace(/\\\\u([0-9A-Fa-f]{4})/, function(_, hex) {
+        return String.fromCharCode(parseInt(hex, 16));
+      });
+    }
+
+    const invisCharsActual = invisibleChars.map(unicodeEscapeToChar);
+
+    // 안전한 RegExp create (각 문자들을 OR로 묶음)
+    function makeInvisiblePattern() {
+      // escapeRegExp not really necessary for these control chars, but keep generic
+      function esc(s){
+        return s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      }
+      return new RegExp(invisCharsActual.map(esc).join('|'), 'g');
+    }
+
+    const invisiblePattern = makeInvisiblePattern();
+
+    // 입력 요소 참조
+    const inputText = document.getElementById('inputText');
+    const output = document.getElementById('output');
+    const detectMsg = document.getElementById('detectMsg');
+    const invisList = document.getElementById('invisList');
+    const resultBadge = document.getElementById('resultBadge');
+
+    document.getElementById('cleanBtn').addEventListener('click', doClean);
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      inputText.value = '';
+      output.textContent = '';
+      detectMsg.textContent = '감지 결과: —';
+      resultBadge.textContent = '—';
+      invisList.textContent = '';
+    });
+    document.getElementById('pasteBtn').addEventListener('click', async () => {
+      try {
+        const txt = await navigator.clipboard.readText();
+        inputText.value = txt;
+      } catch(e){
+        alert('클립보드 접근 실패: 브라우저 권한을 확인하세요.');
+      }
+    });
+
+    document.getElementById('copyBtn').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(output.textContent || '');
+        alert('정리된 텍스트가 복사되었습니다.');
+      } catch(e){
+        alert('복사 실패: 브라우저 권한을 확인하세요.');
+      }
+    });
+
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+      const blob = new Blob([output.textContent || ''], {type:'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cleaned_text.txt';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    function doClean() {
+      const original = inputText.value;
+      if (original == null) return;
+
+      // 감지: 패턴.search와 동일
+      const found = invisiblePattern.test(original);
+      // 어떤 invisible이 발견됐는지도 표시(유저 도움)
+      let foundList = [];
+      for (let i=0;i<invisCharsActual.length;i++){
+        if (original.indexOf(invisCharsActual[i]) !== -1) {
+          // 사람이 보이는 형태로 코드포인트를 표시 (U+XXXX)
+          const cp = invisCharsActual[i].codePointAt(0).toString(16).toUpperCase().padStart(4,'0');
+          foundList.push('U+'+cp);
+        }
+      }
+
+      // 치환: invisible -> 공백
+      let cleaned = original.replace(invisiblePattern, ' ');
+
+      // # 또는 * 제거 (Python과 동일)
+      cleaned = cleaned.replace(/[\\#\\*]/g, '');
+
+      // 결과 표시
+      output.textContent = cleaned;
+      detectMsg.textContent = found ? '감지 결과: 보이지 않는 문자 발견 ✅' : '감지 결과: 보이지 않는 문자 없음 ❌';
+      resultBadge.textContent = found ? 'FOUND' : 'NONE';
+      resultBadge.style.color = found ? '#8ef3c6' : 'var(--muted)';
+
+      invisList.textContent = foundList.length ? '(' + foundList.join(' , ') + ')' : '';
+      // 리셋 RegExp lastIndex (RegExp with g keeps lastIndex)
+      invisiblePattern.lastIndex = 0;
+    }
+
+    // 초기 예시 텍스트(개발 편의)
+    inputText.value = "안녕하세요. 테스트\u200B문자 포함 문자열입니다.\n새 줄입니다. #제거 *별표도 제거됩니다.";
+    // 자동 실행해서 미리보기 보여주기
+    doClean();
+  </script>
+</body>
+</html>
